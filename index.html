@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen"/>
+  <meta name="apple-mobile-web-app-title" content="Baby Fun"/>
+  <title>Baby Fun 🐥</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    body {
+      background: #FF6B9D;
+      font-family: sans-serif;
+      transition: background 0.4s ease;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Bubbles floating in background */
+    .bubble {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0.25;
+      animation: floatUp linear infinite;
+    }
+    @keyframes floatUp {
+      0%   { transform: translateY(110vh) scale(1); opacity: 0.25; }
+      100% { transform: translateY(-20vh) scale(1.1); opacity: 0; }
+    }
+
+    /* Main animal display */
+    #stage {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+
+    #animal-emoji {
+      font-size: 38vw;
+      line-height: 1;
+      filter: drop-shadow(0 8px 32px rgba(0,0,0,0.18));
+      transition: transform 0.15s cubic-bezier(.34,1.56,.64,1);
+      animation: idle 3s ease-in-out infinite;
+    }
+    @keyframes idle {
+      0%,100% { transform: translateY(0) rotate(0deg); }
+      50%      { transform: translateY(-3vw) rotate(3deg); }
+    }
+
+    #animal-name {
+      font-size: 11vw;
+      font-weight: 900;
+      color: white;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      letter-spacing: 0.05em;
+      margin-top: 2vw;
+      animation: nameIn 0.4s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes nameIn {
+      0%   { transform: scale(0.5) translateY(20px); opacity: 0; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    /* Tap hint */
+    #hint {
+      position: fixed;
+      bottom: 8vw;
+      width: 100%;
+      text-align: center;
+      font-size: 6vw;
+      color: rgba(255,255,255,0.7);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 0.7; transform: scale(1); }
+      50%      { opacity: 1; transform: scale(1.05); }
+    }
+
+    /* Burst particles on tap */
+    .burst {
+      position: fixed;
+      pointer-events: none;
+      font-size: 8vw;
+      animation: burstOut 0.8s ease-out forwards;
+      z-index: 99;
+    }
+    @keyframes burstOut {
+      0%   { transform: translate(-50%,-50%) scale(0.2); opacity: 1; }
+      100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.4); opacity: 0; }
+    }
+
+    /* Big bounce on tap */
+    .bounce {
+      animation: bigBounce 0.5s cubic-bezier(.34,1.56,.64,1) !important;
+    }
+    @keyframes bigBounce {
+      0%   { transform: scale(1) rotate(0deg); }
+      30%  { transform: scale(1.35) rotate(-8deg); }
+      60%  { transform: scale(0.9) rotate(5deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+
+    /* Color flash overlay */
+    #flash {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+      z-index: 50;
+    }
+    #flash.on { opacity: 0.35; transition: opacity 0s; }
+  </style>
+</head>
+<body>
+
+<div id="flash"></div>
+
+<div id="stage">
+  <div id="animal-emoji">🐥</div>
+  <div id="animal-name">GÀ CON</div>
+</div>
+
+<div id="hint">👆 Chạm vào màn hình!</div>
+
+<script>
+  // ── DATA ──────────────────────────────────────────────
+  const ANIMALS = [
+    { emoji: "🐥", name: "GÀ CON",   sound: 440,  bg: ["#FFD93D","#FF6B6B"] },
+    { emoji: "🐱", name: "MÈO",      sound: 320,  bg: ["#FF85A1","#FF6B9D"] },
+    { emoji: "🐶", name: "CHÓ CON",  sound: 280,  bg: ["#A8EDEA","#6BCB77"] },
+    { emoji: "🐸", name: "ẾCH",      sound: 200,  bg: ["#6BCB77","#A8EDEA"] },
+    { emoji: "🦊", name: "CÁO",      sound: 360,  bg: ["#FF9A3C","#FFD93D"] },
+    { emoji: "🐼", name: "GẤU TRÚC", sound: 180,  bg: ["#C3B1E1","#FF85A1"] },
+    { emoji: "🐮", name: "BÒ",       sound: 160,  bg: ["#FFE4A0","#FF9A3C"] },
+    { emoji: "🐷", name: "HEO CON",  sound: 380,  bg: ["#FFB3C6","#FF6B9D"] },
+    { emoji: "🦁", name: "SƯ TỬ",    sound: 140,  bg: ["#FFD93D","#FF9A3C"] },
+    { emoji: "🐨", name: "GẤU KOALA",sound: 220,  bg: ["#B5EAD7","#C3B1E1"] },
+    { emoji: "🐯", name: "HỔ CON",   sound: 150,  bg: ["#FF9A3C","#FFD93D"] },
+    { emoji: "🐰", name: "THỎ",      sound: 500,  bg: ["#FFB3C6","#C3B1E1"] },
+    { emoji: "🦆", name: "VỊT",      sound: 300,  bg: ["#A8EDEA","#FFD93D"] },
+    { emoji: "🐻", name: "GẤU",      sound: 130,  bg: ["#C8A97E","#FF9A3C"] },
+    { emoji: "🐧", name: "CHIM CÁNH CỤT", sound: 420, bg: ["#A8EDEA","#C3B1E1"] },
+    { emoji: "🦋", name: "BƯỚM",     sound: 600,  bg: ["#FFB3C6","#C3B1E1"] },
+    { emoji: "🐠", name: "CÁ",       sound: 480,  bg: ["#A8EDEA","#6BCB77"] },
+    { emoji: "🦄", name: "KỲ LÂN",   sound: 560,  bg: ["#C3B1E1","#FFB3C6"] },
+  ];
+
+  const BURST_EMOJIS = ["⭐","🌟","✨","💫","🎉","🎊","❤️","🌈","🍭","🎈"];
+  const BG_COLORS = [
+    "#FF6B9D","#FF9A3C","#FFD93D","#6BCB77","#A8EDEA",
+    "#C3B1E1","#FF85A1","#4FC3F7","#81C784","#FFB74D"
+  ];
+
+  let currentIdx = 0;
+  let audioCtx = null;
+  let lastTap = 0;
+  let bgIdx = 0;
+
+  // ── AUDIO ─────────────────────────────────────────────
+  function getAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+
+  function playAnimalSound(freq) {
+    try {
+      const ctx = getAudio();
+      // Cute bouncy sound: 3 quick beeps
+      [0, 0.12, 0.24].forEach((t, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq * (1 + i * 0.15), ctx.currentTime + t);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.7, ctx.currentTime + t + 0.18);
+        gain.gain.setValueAtTime(0.35, ctx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.22);
+        osc.start(ctx.currentTime + t);
+        osc.stop(ctx.currentTime + t + 0.25);
+      });
+    } catch(e) {}
+  }
+
+  // ── BUBBLES ───────────────────────────────────────────
+  function makeBubbles() {
+    const colors = ["#FF6B9D","#FFD93D","#6BCB77","#A8EDEA","#C3B1E1","#FF9A3C"];
+    for (let i = 0; i < 12; i++) {
+      const b = document.createElement('div');
+      b.className = 'bubble';
+      const size = 8 + Math.random() * 18;
+      b.style.cssText = `
+        width:${size}vw; height:${size}vw;
+        left:${Math.random()*100}vw;
+        background:${colors[Math.floor(Math.random()*colors.length)]};
+        animation-duration:${5+Math.random()*8}s;
+        animation-delay:${Math.random()*6}s;
+      `;
+      document.body.appendChild(b);
+    }
+  }
+
+  // ── BURST PARTICLES ───────────────────────────────────
+  function spawnBurst(x, y) {
+    for (let i = 0; i < 7; i++) {
+      const el = document.createElement('div');
+      el.className = 'burst';
+      el.textContent = BURST_EMOJIS[Math.floor(Math.random() * BURST_EMOJIS.length)];
+      const angle = (Math.PI * 2 / 7) * i;
+      const dist = 18 + Math.random() * 22;
+      el.style.cssText = `
+        left:${x}px; top:${y}px;
+        --dx:${Math.cos(angle)*dist}vw;
+        --dy:${Math.sin(angle)*dist}vw;
+        animation-delay:${Math.random()*0.1}s;
+      `;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 900);
+    }
+  }
+
+  // ── SHOW ANIMAL ───────────────────────────────────────
+  function showAnimal(idx) {
+    const a = ANIMALS[idx];
+    const emojiEl = document.getElementById('animal-emoji');
+    const nameEl  = document.getElementById('animal-name');
+
+    emojiEl.textContent = a.emoji;
+    nameEl.textContent  = a.name;
+
+    // Background gradient
+    document.body.style.background =
+      `linear-gradient(135deg, ${a.bg[0]}, ${a.bg[1]})`;
+
+    // Replay name animation
+    nameEl.style.animation = 'none';
+    nameEl.offsetHeight;
+    nameEl.style.animation = 'nameIn 0.4s cubic-bezier(.34,1.56,.64,1)';
+
+    // Bounce emoji
+    emojiEl.classList.remove('bounce');
+    emojiEl.offsetHeight;
+    emojiEl.classList.add('bounce');
+    setTimeout(() => emojiEl.classList.remove('bounce'), 600);
+
+    playAnimalSound(a.sound);
+  }
+
+  // ── FLASH ─────────────────────────────────────────────
+  function flash(color) {
+    const f = document.getElementById('flash');
+    f.style.background = color;
+    f.classList.add('on');
+    setTimeout(() => f.classList.remove('on'), 80);
+  }
+
+  // ── HANDLE TAP ────────────────────────────────────────
+  function onTap(e) {
+    e.preventDefault();
+
+    const now = Date.now();
+    if (now - lastTap < 200) return; // debounce
+    lastTap = now;
+
+    // Get tap position
+    const touch = e.touches ? e.touches[0] : e;
+    const x = touch ? touch.clientX : window.innerWidth / 2;
+    const y = touch ? touch.clientY : window.innerHeight / 2;
+
+    // Next animal
+    currentIdx = (currentIdx + 1) % ANIMALS.length;
+    showAnimal(currentIdx);
+
+    // Visual effects
+    spawnBurst(x, y);
+    flash(ANIMALS[currentIdx].bg[0]);
+
+    // Hide hint after first tap
+    document.getElementById('hint').style.opacity = '0';
+  }
+
+  // ── PREVENT ACCIDENTAL NAVIGATION ────────────────────
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('selectstart', e => e.preventDefault());
+
+  // ── INIT ─────────────────────────────────────────────
+  document.addEventListener('touchstart', onTap, { passive: false });
+  document.addEventListener('mousedown', onTap);
+
+  makeBubbles();
+  showAnimal(0);
+</script>
+</body>
+</html>
